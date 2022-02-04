@@ -1,3 +1,6 @@
+require "i18n"
+I18n.config.available_locales = :en
+
 class Contact
     attr_accessor :name, :emails, :phones
 
@@ -32,11 +35,11 @@ def is_name?(line)
 end
 
 def is_email?(line)
-    line.include? "EMAIL;type=INTERNET;"
+    line.include? "EMAIL;type=INTERNET"
 end
 
 def is_phone?(line)
-    line.include? "TEL;"
+    line.include? "TEL:" or line.include? "TEL;" 
 end
 
 contacts=[]
@@ -59,12 +62,28 @@ File.foreach("data.vcf") { |line|
     end
 }
 
-
-
+contacts.reject! {|c| c.name == nil || (c.emails.size() == 0 && c.phones.size() == 0) || c.name.match(/[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+/) }
 contacts.each { |c| 
     c.phones = c.phones.map { |phone| 
         phone.gsub(/[-,\(,\)]/,"").gsub(" ","")
     }.uniq
     c.emails = c.emails.uniq
+    c.name = I18n.transliterate(c.name)   
 }
-contacts.each {|contact| puts contact}
+contacts.uniq! {|contact| [contact.name, contact.emails, contact.phones]}
+contacts.sort! { |a,b| a.name <=> b.name }
+
+File.open('new_data.vcf', 'w') { |file| 
+    contacts.each { |c| 
+        file.write("BEGIN:VCARD\n")
+        file.write("VERSION:3.0\n")
+        file.write("FN:#{c.name}\n")
+        c.emails.each { |email| 
+            file.write("EMAIL:#{email}\n")    
+        }
+        c.phones.each { |phone| 
+            file.write("TEL;VOICE:#{phone}\n")    
+        }
+        file.write("END:VCARD\n")
+    }
+}
